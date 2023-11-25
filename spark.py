@@ -2,6 +2,36 @@ from pyspark.sql import SparkSession
 from pyspark.sql import functions as F
 from pyspark.sql.window import Window
 
+# TODO argument parsing
+
+def task1(df):
+    # Select relevant columns
+    df_selected = df.select(
+        "feature.attributes.id",
+        "feature.attributes.lastupdate",
+        "feature.attributes.vtype",
+        "feature.attributes.lat",
+    )
+    cond1 = F.col('vtype') == 1 # Tram
+    cond2 = F.col('vtype') == 2 # Trolleybus
+    cond3 = F.col('vtype') == 3 # Bus
+    cond = cond1 | cond2 | cond3
+    df_filter = df_selected.filter(cond)
+
+    # If the latitude decreases the vehicle is moving south
+    df_moving_south = df_filter.withColumn("moving_south", F.when(F.lag("lat").over(Window.partitionBy("id").orderBy("lastupdate")) > F.col("lat"), 1).otherwise(0))
+    df_moving_south = df_moving_south.filter("moving_south == 1").drop("moving_south").drop("latitude_diff")
+    # Define a window specification over vehicleID, ordered by lastupdate in descending order
+    w = Window.partitionBy("id").orderBy(F.desc("lastupdate"))
+
+    # Assign a rank to each record within each vehicleID partition based on lastupdate
+    df_moving_south = df_moving_south.withColumn("rank", F.row_number().over(w)).filter("rank == 1").drop("rank")
+
+    df_moving_south = df_moving_south.withColumn("lastupdate", F.from_unixtime(F.col("lastupdate")/1000).cast("timestamp"))
+
+    return df_moving_south
+
+
 def task3(df):
     # Select relevant columns
     df_selected = df.select(
@@ -104,7 +134,8 @@ df_exploded = df.select(
 )
 df_exploded = df_exploded.filter(df_exploded.feature.attributes.isinactive == 'false')
 
-df_last_stop = task3(df_exploded)
-df_delayed = task4(df_exploded)
-df_last_stop = task5(df_exploded)
-avg_delay = task6(df_exploded)
+df_moving_south = task1(df_exploded)
+#df_last_stop = task3(df_exploded)
+#df_delayed = task4(df_exploded)
+#df_last_stop = task5(df_exploded)
+#avg_delay = task6(df_exploded)
