@@ -209,4 +209,3 @@ df_last_stop = task5(df_exploded)
 df_last_stop.show()
 avg_delay = task6(df_exploded)
 avg_delay.show()
-
