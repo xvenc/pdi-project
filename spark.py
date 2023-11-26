@@ -6,7 +6,7 @@ import argparse
 # Argument parser
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--task", type=int, default=1, help="Task number. [1-6]")
+    #parser.add_argument("--task", type=int, default=1, help="Task number. [1-6]")
     parser.add_argument("--input", type=str, default="ODAE.json", help="Input file")
     args = parser.parse_args()
     return args
@@ -196,25 +196,17 @@ spark = SparkSession.builder.appName("PDI").getOrCreate()
 df = spark.read.json(args.input)
 df_exploded = df_preprocess(df)
 
-if args.task == 1:
-    df_moving_south = task1(df_exploded)
-    df_moving_south.show()
+df_moving_south = task1(df_exploded)
+df_moving_south.show()
 #df_moving_south = df_moving_south.groupBy().count().withColumnRenamed("count", "south")
-elif args.task == 2:
-    df_moving_direction = task2(df_exploded)
-    df_moving_direction.show()
-elif args.task == 3:
-    df_last_stop = task3(df_exploded)
-    df_last_stop.show()
-elif args.task == 4:
-    df_delayed = task4(df_exploded)
-    df_delayed.show()
-elif args.task == 5:
-    df_last_stop = task5(df_exploded)
-    df_last_stop.show()
-elif args.task == 6:
-    avg_delay = task6(df_exploded)
-    avg_delay.show()
-else:
-    print("Wrong task number")
-    exit(42)
+df_moving_direction = task2(df_exploded)
+df_moving_direction.show()
+df_last_stop = task3(df_exploded)
+df_last_stop.show()
+df_delayed = task4(df_exploded)
+df_delayed.show()
+df_last_stop = task5(df_exploded)
+df_last_stop.show()
+avg_delay = task6(df_exploded)
+avg_delay.show()
+
