@@ -1,8 +1,24 @@
 from pyspark.sql import SparkSession
 from pyspark.sql import functions as F
 from pyspark.sql.window import Window
+import argparse
 
-# TODO argument parsing
+# Argument parser
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--task", type=int, default=1, help="Task number. [1-6]")
+    parser.add_argument("--input", type=str, default="ODAE.json", help="Input file")
+    args = parser.parse_args()
+    return args
+
+def df_preprocess(df):
+    # Explode the 'features' array column to handle the nested struct
+    df_exploded = df.select(
+        F.explode("features").alias("feature"),
+    )
+    df_exploded = df_exploded.filter(df_exploded.feature.attributes.isinactive == 'false')
+
+    return df_exploded
 
 def task1(df):
     # Select relevant columns
@@ -105,6 +121,7 @@ def task3(df):
     return df_last_stop
 
 def task4(df):
+    # TODO redo this
     # Select relevant columns
     df_selected = df.select(
         "feature.attributes.id",
@@ -174,20 +191,32 @@ def task6(df):
     return result_df
 
 # MAIN
+
+# Parse arguments
+args = parse_args()
 spark = SparkSession.builder.appName("PDI").getOrCreate()
-df = spark.read.json("ODAE.json")
+df = spark.read.json(args.input)
+df_exploded = df_preprocess(df)
 
-# Explode the 'features' array column to handle the nested struct
-df_exploded = df.select(
-    F.explode("features").alias("feature"),
-)
-df_exploded = df_exploded.filter(df_exploded.feature.attributes.isinactive == 'false')
-
-df_moving_south = task1(df_exploded)
+if args.task == 1:
+    df_moving_south = task1(df_exploded)
+    df_moving_south.show()
 #df_moving_south = df_moving_south.groupBy().count().withColumnRenamed("count", "south")
-df_moving_direction = task2(df_exploded)
-#df_moving_direction.show()
-df_last_stop = task3(df_exploded)
-df_delayed = task4(df_exploded)
-df_last_stop = task5(df_exploded)
-avg_delay = task6(df_exploded)
+elif args.task == 2:
+    df_moving_direction = task2(df_exploded)
+    df_moving_direction.show()
+elif args.task == 3:
+    df_last_stop = task3(df_exploded)
+    df_last_stop.show()
+elif args.task == 4:
+    df_delayed = task4(df_exploded)
+    df_delayed.show()
+elif args.task == 5:
+    df_last_stop = task5(df_exploded)
+    df_last_stop.show()
+elif args.task == 6:
+    avg_delay = task6(df_exploded)
+    avg_delay.show()
+else:
+    print("Wrong task number")
+    exit(42)
