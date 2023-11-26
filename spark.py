@@ -31,6 +31,56 @@ def task1(df):
 
     return df_moving_south
 
+def task2(df):
+    # Select relevant columns
+    df_selected = df.select(
+        "feature.attributes.id",
+        "feature.attributes.lastupdate",
+        "feature.attributes.vtype",
+        "feature.attributes.lat",
+        "feature.attributes.lng",
+    )
+    cond1 = F.col('vtype') == 1 # Tram
+    cond2 = F.col('vtype') == 2 # Trolleybus
+    cond3 = F.col('vtype') == 3 # Bus
+    cond = cond1 | cond2 | cond3
+    df_filter = df_selected.filter(cond)
+
+    # Calculate the number of vehicles moving north, east, south and west, respectively, but take only the most recent record for each vehicle
+
+    # If the latitude decreases the vehicle is moving south
+    df_moving_south = df_filter.withColumn("moving_south", F.when(F.lag("lat").over(Window.partitionBy("id").orderBy("lastupdate")) > F.col("lat"), 1).otherwise(0))
+    df_moving_south = df_moving_south.filter("moving_south == 1").drop("moving_south").drop("latitude_diff")
+    # If the latitude increases the vehicle is moving north
+    df_moving_north = df_filter.withColumn("moving_north", F.when(F.lag("lat").over(Window.partitionBy("id").orderBy("lastupdate")) < F.col("lat"), 1).otherwise(0))
+    df_moving_north = df_moving_north.filter("moving_north == 1").drop("moving_north").drop("latitude_diff")
+    # If the longitude decreases the vehicle is moving west
+    df_moving_west = df_filter.withColumn("moving_west", F.when(F.lag("lng").over(Window.partitionBy("id").orderBy("lastupdate")) > F.col("lng"), 1).otherwise(0))
+    df_moving_west = df_moving_west.filter("moving_west == 1").drop("moving_west").drop("longitude_diff")
+    # If the longitude increases the vehicle is moving east
+    df_moving_east = df_filter.withColumn("moving_east", F.when(F.lag("lng").over(Window.partitionBy("id").orderBy("lastupdate")) < F.col("lng"), 1).otherwise(0))
+    df_moving_east = df_moving_east.filter("moving_east == 1").drop("moving_east").drop("longitude_diff")
+
+    # Define a window specification over vehicleID, ordered by lastupdate in descending order
+    w = Window.partitionBy("id").orderBy(F.desc("lastupdate"))
+
+    # Assign a rank to each record within each vehicleID partition based on lastupdate
+    df_moving_south = df_moving_south.withColumn("rank", F.row_number().over(w)).filter("rank == 1").drop("rank")
+    df_moving_north = df_moving_north.withColumn("rank", F.row_number().over(w)).filter("rank == 1").drop("rank")
+    df_moving_west = df_moving_west.withColumn("rank", F.row_number().over(w)).filter("rank == 1").drop("rank")
+    df_moving_east = df_moving_east.withColumn("rank", F.row_number().over(w)).filter("rank == 1").drop("rank")
+
+    # Count the number of vehicles moving in each direction
+    df_moving_south = df_moving_south.groupBy().count().withColumnRenamed("count", "south")
+    df_moving_north = df_moving_north.groupBy().count().withColumnRenamed("count", "north")
+    df_moving_west = df_moving_west.groupBy().count().withColumnRenamed("count", "west")
+    df_moving_east = df_moving_east.groupBy().count().withColumnRenamed("count", "east")
+
+    # Join the results
+    result_df = df_moving_south.join(df_moving_north).join(df_moving_west).join(df_moving_east)
+
+    return result_df
+
 
 def task3(df):
     # Select relevant columns
@@ -126,7 +176,6 @@ def task6(df):
 # MAIN
 spark = SparkSession.builder.appName("PDI").getOrCreate()
 df = spark.read.json("ODAE.json")
-#df_selected.printSchema()
 
 # Explode the 'features' array column to handle the nested struct
 df_exploded = df.select(
@@ -135,7 +184,10 @@ df_exploded = df.select(
 df_exploded = df_exploded.filter(df_exploded.feature.attributes.isinactive == 'false')
 
 df_moving_south = task1(df_exploded)
-#df_last_stop = task3(df_exploded)
-#df_delayed = task4(df_exploded)
-#df_last_stop = task5(df_exploded)
-#avg_delay = task6(df_exploded)
+#df_moving_south = df_moving_south.groupBy().count().withColumnRenamed("count", "south")
+df_moving_direction = task2(df_exploded)
+#df_moving_direction.show()
+df_last_stop = task3(df_exploded)
+df_delayed = task4(df_exploded)
+df_last_stop = task5(df_exploded)
+avg_delay = task6(df_exploded)
