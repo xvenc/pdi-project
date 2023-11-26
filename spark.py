@@ -121,7 +121,6 @@ def task3(df):
     return df_last_stop
 
 def task4(df):
-    # TODO redo this
     # Select relevant columns
     df_selected = df.select(
         "feature.attributes.id",
@@ -134,15 +133,14 @@ def task4(df):
     cond = cond1 | cond2 | cond3
     df_filter = df_selected.filter(cond)
 
-    df_delayed = df_filter.orderBy(F.desc('delay')) 
+    # Define a window specification over vehicleID, ordered by delay in descending order
+    w = Window.partitionBy("id").orderBy(F.desc("delay"))
 
-    # Add a row number to the DataFrame
-    df_delayed = df_delayed.withColumn("row_num", F.row_number().over(Window.orderBy(F.desc("delay"))))
+    # Assign a rank to each record within each vehicleID partition based on delay
+    df_delayed = df_filter.withColumn("rank", F.row_number().over(w)).filter("rank == 1")
 
-    # Select up to 5 delayed wagons
-    df_delayed = df_delayed.filter("row_num <= 5").drop("row_num")
-    # Rename columns
-    df_delayed = df_delayed.withColumnRenamed("id", "vehicle_id")
+    # Now order by delay in descending order and keep only the first 5 records
+    df_delayed = df_delayed.orderBy(F.desc("delay")).limit(5).drop("rank")
 
     return df_delayed
 
