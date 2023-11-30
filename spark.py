@@ -20,6 +20,36 @@ def df_preprocess(df):
 
     return df_exploded
 
+def task1_alternative(df):
+    # Select relevant columns
+    df_selected = df.select(
+        "feature.attributes.id",
+        "feature.attributes.lastupdate",
+        "feature.attributes.vtype",
+        "feature.attributes.bearing",
+    )
+    cond0 = F.col('vtype') == 0
+    cond1 = F.col('vtype') == 1 # Tram
+    cond2 = F.col('vtype') == 2 # Trolleybus
+    cond3 = F.col('vtype') == 3 # Bus
+    cond4 = F.col('vtype') == 4 # Boat
+    cond5 = F.col('vtype') == 5 # Train
+    # If the vehicle is moving south, the bearing is between 135 and 225 degrees
+    cond_bearing = F.col('bearing').between(135, 225) 
+    # Filter 
+    cond = (cond1 | cond2 | cond3 | cond4 | cond5 | cond0) & cond_bearing
+    df_filter = df_selected.filter(cond)
+
+    # Define a window specification over vehicleID, ordered by lastupdate in descending order
+    w = Window.partitionBy("id").orderBy(F.desc("lastupdate"))
+
+    # Assign a rank to each record within each vehicleID partition based on lastupdate
+    df_filter = df_filter.withColumn("rank", F.row_number().over(w)).filter("rank == 1").drop("rank")
+
+    df_filter = df_filter.withColumn("lastupdate", F.from_unixtime(F.col("lastupdate")/1000).cast("timestamp"))
+
+    return df_filter
+
 def task1(df):
     # Select relevant columns
     df_selected = df.select(
@@ -27,11 +57,15 @@ def task1(df):
         "feature.attributes.lastupdate",
         "feature.attributes.vtype",
         "feature.attributes.lat",
+        "feature.attributes.bearing"
     )
+    cond0 = F.col('vtype') == 0
     cond1 = F.col('vtype') == 1 # Tram
     cond2 = F.col('vtype') == 2 # Trolleybus
     cond3 = F.col('vtype') == 3 # Bus
-    cond = cond1 | cond2 | cond3
+    cond4 = F.col('vtype') == 4 # Boat
+    cond5 = F.col('vtype') == 5 # Train
+    cond = cond1 | cond2 | cond3 | cond4 | cond5 | cond0
     df_filter = df_selected.filter(cond)
 
     # If the latitude decreases the vehicle is moving south
@@ -46,6 +80,66 @@ def task1(df):
     df_moving_south = df_moving_south.withColumn("lastupdate", F.from_unixtime(F.col("lastupdate")/1000).cast("timestamp"))
 
     return df_moving_south
+
+def task2_alternative(df):
+    # Select relevant columns
+    df_selected = df.select(
+        "feature.attributes.id",
+        "feature.attributes.lastupdate",
+        "feature.attributes.vtype",
+        "feature.attributes.bearing",
+    )
+
+    cond1 = F.col('vtype') == 1 # Tram
+    cond2 = F.col('vtype') == 2 # Trolleybus
+    cond3 = F.col('vtype') == 3 # Bus
+    cond4 = F.col('vtype') == 4 # Boat
+    cond5 = F.col('vtype') == 5 # Train
+
+    # If the vehicle is moving south, the bearing is between 135 and 225 degrees
+    cond_bearing_south = F.col('bearing').between(135, 225)
+    # If the vehicle is moving north, the bearing is between 315 and 45 degrees
+    cond_bearing_north = F.col('bearing').between(315, 360)
+    cond_bearing_north = cond_bearing_north | F.col('bearing').between(0, 45)
+    # If the vehicle is moving west, the bearing is between 225 and 315 degrees
+    cond_bearing_west = F.col('bearing').between(225, 315)
+    # If the vehicle is moving east, the bearing is between 45 and 135 degrees
+    cond_bearing_east = F.col('bearing').between(45, 135)
+
+    # Filter
+    cond_type = cond1 | cond2 | cond3 | cond4 | cond5 
+    cond_south =  cond_type & cond_bearing_south
+    cond_north = cond_type & cond_bearing_north
+    cond_west = cond_type & cond_bearing_west
+    cond_east = cond_type & cond_bearing_east
+
+    df_filter_south = df_selected.filter(cond_south)
+    df_filter_north = df_selected.filter(cond_north)
+    df_filter_west = df_selected.filter(cond_west)
+    df_filter_east = df_selected.filter(cond_east)
+
+    # Define a window specification over vehicleID, ordered by lastupdate in descending order
+    w = Window.partitionBy("id").orderBy(F.desc("lastupdate"))
+
+    # Assign a rank to each record within each vehicleID partition based on lastupdate
+    df_filter_south = df_filter_south.withColumn("rank", F.row_number().over(w)).filter("rank == 1").drop("rank")
+    df_filter_north = df_filter_north.withColumn("rank", F.row_number().over(w)).filter("rank == 1").drop("rank")
+    df_filter_west = df_filter_west.withColumn("rank", F.row_number().over(w)).filter("rank == 1").drop("rank")
+    df_filter_east = df_filter_east.withColumn("rank", F.row_number().over(w)).filter("rank == 1").drop("rank")
+    df_filter_south = df_filter_south.withColumn("lastupdate", F.from_unixtime(F.col("lastupdate")/1000).cast("timestamp"))
+    df_filter_north = df_filter_north.withColumn("lastupdate", F.from_unixtime(F.col("lastupdate")/1000).cast("timestamp"))
+    df_filter_west = df_filter_west.withColumn("lastupdate", F.from_unixtime(F.col("lastupdate")/1000).cast("timestamp"))
+    df_filter_east = df_filter_east.withColumn("lastupdate", F.from_unixtime(F.col("lastupdate")/1000).cast("timestamp"))
+
+    # Count the number of vehicles moving in each direction
+    df_filter_south = df_filter_south.groupBy().count().withColumnRenamed("count", "south")
+    df_filter_north = df_filter_north.groupBy().count().withColumnRenamed("count", "north")
+    df_filter_west = df_filter_west.groupBy().count().withColumnRenamed("count", "west")
+    df_filter_east = df_filter_east.groupBy().count().withColumnRenamed("count", "east")
+
+    # Join the results
+    result_df = df_filter_south.join(df_filter_north).join(df_filter_west).join(df_filter_east)
+    return result_df
 
 def task2(df):
     # Select relevant columns
@@ -188,6 +282,10 @@ def task6(df):
 
     return result_df
 
+# Write the results to a file
+def write_to_file(df, task):
+    df.write.mode("overwrite").csv("task{}.csv".format(task))
+
 # MAIN
 
 # Parse arguments
@@ -196,16 +294,21 @@ spark = SparkSession.builder.appName("PDI").getOrCreate()
 df = spark.read.json(args.input)
 df_exploded = df_preprocess(df)
 
-df_moving_south = task1(df_exploded)
-df_moving_south.show()
+# Run the tasks
+#df_moving_south = task1(df_exploded)
+#df_moving_south.show()
+#df_moving_south_alt = task1_alternative(df_exploded)
+#df_moving_south_alt.show()
 #df_moving_south = df_moving_south.groupBy().count().withColumnRenamed("count", "south")
-df_moving_direction = task2(df_exploded)
-df_moving_direction.show()
-df_last_stop = task3(df_exploded)
-df_last_stop.show()
-df_delayed = task4(df_exploded)
-df_delayed.show()
-df_last_stop = task5(df_exploded)
-df_last_stop.show()
-avg_delay = task6(df_exploded)
-avg_delay.show()
+#df_moving_direction = task2(df_exploded)
+#df_moving_direction.show()
+df_moving_direction_alt = task2_alternative(df_exploded)
+df_moving_direction_alt.show()
+#df_last_stop = task3(df_exploded)
+#df_last_stop.show()
+#df_delayed = task4(df_exploded)
+#df_delayed.show()
+#df_last_stop = task5(df_exploded)
+#df_last_stop.show()
+#avg_delay = task6(df_exploded)
+#avg_delay.show()
