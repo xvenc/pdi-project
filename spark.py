@@ -20,6 +20,18 @@ def df_preprocess(df):
 
     return df_exploded
 
+def df_vehicle_type(df):
+    cond0 = F.col('vtype') == 0 # Unknown
+    cond1 = F.col('vtype') == 1 # Tram
+    cond2 = F.col('vtype') == 2 # Trolleybus
+    cond3 = F.col('vtype') == 3 # Bus
+    cond4 = F.col('vtype') == 4 # Boat
+    cond5 = F.col('vtype') == 5 # Train
+    cond = cond1 | cond2 | cond3 | cond4 | cond5 | cond0
+    df_filter = df.filter(cond)
+
+    return df_filter
+
 def task1_alternative(df):
     # Select relevant columns
     df_selected = df.select(
@@ -28,17 +40,9 @@ def task1_alternative(df):
         "feature.attributes.vtype",
         "feature.attributes.bearing",
     )
-    cond0 = F.col('vtype') == 0
-    cond1 = F.col('vtype') == 1 # Tram
-    cond2 = F.col('vtype') == 2 # Trolleybus
-    cond3 = F.col('vtype') == 3 # Bus
-    cond4 = F.col('vtype') == 4 # Boat
-    cond5 = F.col('vtype') == 5 # Train
     # If the vehicle is moving south, the bearing is between 135 and 225 degrees
     cond_bearing = F.col('bearing').between(135, 225) 
-    # Filter 
-    cond = (cond1 | cond2 | cond3 | cond4 | cond5 | cond0) & cond_bearing
-    df_filter = df_selected.filter(cond)
+    df_filter = df_vehicle_type(df_selected).filter(cond_bearing)
 
     # Define a window specification over vehicleID, ordered by lastupdate in descending order
     w = Window.partitionBy("id").orderBy(F.desc("lastupdate"))
@@ -59,14 +63,7 @@ def task1(df):
         "feature.attributes.lat",
         "feature.attributes.bearing"
     )
-    cond0 = F.col('vtype') == 0
-    cond1 = F.col('vtype') == 1 # Tram
-    cond2 = F.col('vtype') == 2 # Trolleybus
-    cond3 = F.col('vtype') == 3 # Bus
-    cond4 = F.col('vtype') == 4 # Boat
-    cond5 = F.col('vtype') == 5 # Train
-    cond = cond1 | cond2 | cond3 | cond4 | cond5 | cond0
-    df_filter = df_selected.filter(cond)
+    df_filter = df_vehicle_type(df_selected) 
 
     # If the latitude decreases the vehicle is moving south
     df_moving_south = df_filter.withColumn("moving_south", F.when(F.lag("lat").over(Window.partitionBy("id").orderBy("lastupdate")) > F.col("lat"), 1).otherwise(0))
@@ -90,12 +87,6 @@ def task2_alternative(df):
         "feature.attributes.bearing",
     )
 
-    cond1 = F.col('vtype') == 1 # Tram
-    cond2 = F.col('vtype') == 2 # Trolleybus
-    cond3 = F.col('vtype') == 3 # Bus
-    cond4 = F.col('vtype') == 4 # Boat
-    cond5 = F.col('vtype') == 5 # Train
-
     # If the vehicle is moving south, the bearing is between 135 and 225 degrees
     cond_bearing_south = F.col('bearing').between(135, 225)
     # If the vehicle is moving north, the bearing is between 315 and 45 degrees
@@ -106,17 +97,10 @@ def task2_alternative(df):
     # If the vehicle is moving east, the bearing is between 45 and 135 degrees
     cond_bearing_east = F.col('bearing').between(45, 135)
 
-    # Filter
-    cond_type = cond1 | cond2 | cond3 | cond4 | cond5 
-    cond_south =  cond_type & cond_bearing_south
-    cond_north = cond_type & cond_bearing_north
-    cond_west = cond_type & cond_bearing_west
-    cond_east = cond_type & cond_bearing_east
-
-    df_filter_south = df_selected.filter(cond_south)
-    df_filter_north = df_selected.filter(cond_north)
-    df_filter_west = df_selected.filter(cond_west)
-    df_filter_east = df_selected.filter(cond_east)
+    df_filter_south = df_vehicle_type(df_selected).filter(cond_bearing_south) 
+    df_filter_north = df_vehicle_type(df_selected).filter(cond_bearing_north)
+    df_filter_west = df_vehicle_type(df_selected).filter(cond_bearing_west) 
+    df_filter_east = df_vehicle_type(df_selected).filter(cond_bearing_east) 
 
     # Define a window specification over vehicleID, ordered by lastupdate in descending order
     w = Window.partitionBy("id").orderBy(F.desc("lastupdate"))
@@ -150,11 +134,7 @@ def task2(df):
         "feature.attributes.lat",
         "feature.attributes.lng",
     )
-    cond1 = F.col('vtype') == 1 # Tram
-    cond2 = F.col('vtype') == 2 # Trolleybus
-    cond3 = F.col('vtype') == 3 # Bus
-    cond = cond1 | cond2 | cond3
-    df_filter = df_selected.filter(cond)
+    df_filter = df_vehicle_type(df_selected)
 
     # Calculate the number of vehicles moving north, east, south and west, respectively, but take only the most recent record for each vehicle
 
@@ -202,10 +182,8 @@ def task3(df):
         "feature.attributes.vtype",
     )
 
-    cond1 = F.col("ltype") == 1
-    cond2 = F.col("vtype") == 1
-    cond = cond1 & cond2
-    df_filter = df_selected.filter(cond)
+    cond1 = F.col("vtype") == 1
+    df_filter = df_selected.filter(cond1)
 
     w = Window.partitionBy("id").orderBy(F.desc('lastupdate'))
     df_last_stop = df_filter.withColumn("row_num", F.row_number().over(w)).filter("row_num == 1").drop("row_num").drop("ltype").drop("vtype")
@@ -221,11 +199,7 @@ def task4(df):
         "feature.attributes.delay",
         "feature.attributes.vtype",
     )
-    cond1 = F.col('vtype') == 1
-    cond2 = F.col('vtype') == 2
-    cond3 = F.col('vtype') == 3
-    cond = cond1 | cond2 | cond3
-    df_filter = df_selected.filter(cond)
+    df_filter = df_vehicle_type(df_selected) 
 
     # Define a window specification over vehicleID, ordered by delay in descending order
     w = Window.partitionBy("id").orderBy(F.desc("delay"))
@@ -247,11 +221,7 @@ def task5(df):
         "feature.attributes.vtype",
     )
     
-    cond1 = F.col('vtype') == 1 # Tram
-    cond2 = F.col('vtype') == 2 # Trolleybus 
-    cond3 = F.col('vtype') == 3 # Bus
-    cond = cond1 | cond2 | cond3
-    df_filter = df_selected.filter(cond)
+    df_filter = df_vehicle_type(df_selected) 
 
     w = Window.partitionBy("id").orderBy(F.desc('lastupdate'))
 
@@ -269,13 +239,7 @@ def task6(df):
         "feature.attributes.delay",
         "feature.attributes.vtype",
     )
-    cond1 = F.col('vtype') == 1
-    cond2 = F.col('vtype') == 2
-    cond3 = F.col('vtype') == 3
-    cond4 = F.col('vtype') == 4 
-    cond5 = F.col('vtype') == 5 
-    cond = cond1 | cond2 | cond3 | cond4 | cond5
-    df_filter = df_selected.filter(cond)
+    df_filter = df_vehicle_type(df_selected) 
 
     # Calculate the average delay for each vehicle type
     result_df = df_filter.groupBy("vtype").agg(F.avg("delay").alias("avg_delay"))
@@ -302,8 +266,8 @@ df_exploded = df_preprocess(df)
 #df_moving_south = df_moving_south.groupBy().count().withColumnRenamed("count", "south")
 #df_moving_direction = task2(df_exploded)
 #df_moving_direction.show()
-df_moving_direction_alt = task2_alternative(df_exploded)
-df_moving_direction_alt.show()
+#df_moving_direction_alt = task2_alternative(df_exploded)
+#df_moving_direction_alt.show()
 #df_last_stop = task3(df_exploded)
 #df_last_stop.show()
 #df_delayed = task4(df_exploded)
