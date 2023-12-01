@@ -13,4 +13,4 @@ COPY run.sh /opt/spark
 ENV PYSPARK_PYTHON=python3
 ENV PYSPARK_DRIVER_PYTHON=python3
 
-RUN ./run.sh > spark_out.txt
+RUN ./run.sh 

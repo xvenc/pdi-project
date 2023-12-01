@@ -246,9 +246,9 @@ def task6(df):
 
     return result_df
 
-# Write the results to a file
+# Write the results to a text file
 def write_to_file(df, task):
-    df.write.mode("overwrite").csv("task{}.csv".format(task))
+    df.write.mode("overwrite").json("logs/task{}".format(task))
 
 # MAIN
 
@@ -259,20 +259,16 @@ df = spark.read.json(args.input)
 df_exploded = df_preprocess(df)
 
 # Run the tasks
-#df_moving_south = task1(df_exploded)
-#df_moving_south.show()
-#df_moving_south_alt = task1_alternative(df_exploded)
-#df_moving_south_alt.show()
-#df_moving_south = df_moving_south.groupBy().count().withColumnRenamed("count", "south")
-#df_moving_direction = task2(df_exploded)
-#df_moving_direction.show()
-#df_moving_direction_alt = task2_alternative(df_exploded)
-#df_moving_direction_alt.show()
-#df_last_stop = task3(df_exploded)
-#df_last_stop.show()
-#df_delayed = task4(df_exploded)
-#df_delayed.show()
-#df_last_stop = task5(df_exploded)
-#df_last_stop.show()
-#avg_delay = task6(df_exploded)
-#avg_delay.show()
+df_moving_south_alt = task1_alternative(df_exploded)
+df_moving_direction_alt = task2_alternative(df_exploded)
+df_last_stop = task3(df_exploded)
+df_delayed = task4(df_exploded)
+df_last_stop = task5(df_exploded)
+avg_delay = task6(df_exploded)
+# Write the results to a file
+write_to_file(df_moving_south_alt, 1)
+write_to_file(df_moving_direction_alt, 2)
+write_to_file(df_last_stop, 3)
+write_to_file(df_delayed, 4)
+write_to_file(df_last_stop, 5)
+write_to_file(avg_delay, 6)
