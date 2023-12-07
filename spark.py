@@ -248,7 +248,7 @@ def task6(df):
 
 # Write the results to a text file
 def write_to_file(df, task):
-    df.write.mode("overwrite").json("logs/task{}".format(task))
+    df.write.mode("overwrite").json("pokus.json")
 
 # MAIN
 
@@ -272,3 +272,4 @@ write_to_file(df_last_stop, 3)
 write_to_file(df_delayed, 4)
 write_to_file(df_last_stop, 5)
 write_to_file(avg_delay, 6)
+spark.stop()
